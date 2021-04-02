@@ -9,8 +9,8 @@
 
 const path = require( 'path' );
 const webpack = require( 'webpack' );
-const { bundler, styles } = require( '@ckeditor/ckeditor5-dev-utils' );
-const CKEditorWebpackPlugin = require( '@ckeditor/ckeditor5-dev-webpack-plugin' );
+const { bundler, styles } = require( '../../node_modules/@ckeditor/ckeditor5-dev-utils' );
+const CKEditorWebpackPlugin = require( '../../node_modules/@ckeditor/ckeditor5-dev-webpack-plugin' );
 const TerserPlugin = require( 'terser-webpack-plugin' );
 
 module.exports = {
@@ -28,6 +28,14 @@ module.exports = {
 		libraryTarget: 'umd',
 		libraryExport: 'default'
 	},
+
+	// 以支持自定义构建
+	resolve: {
+		alias: {
+			'@ckeditor': path.resolve(__dirname, './../')
+		}
+	},
+
 
 	optimization: {
 		minimizer: [
@@ -48,7 +56,7 @@ module.exports = {
 		new CKEditorWebpackPlugin( {
 			// UI language. Language codes follow the https://en.wikipedia.org/wiki/ISO_639-1 format.
 			// When changing the built-in language, remember to also change it in the editor's configuration (src/ckeditor.js).
-			language: 'en',
+			language: 'zh-cn',
 			additionalLanguages: 'all'
 		} ),
 		new webpack.BannerPlugin( {

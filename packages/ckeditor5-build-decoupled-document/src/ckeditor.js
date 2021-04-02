@@ -24,12 +24,16 @@ import EasyImage from '@ckeditor/ckeditor5-easy-image/src/easyimage';
 import Heading from '@ckeditor/ckeditor5-heading/src/heading';
 import Image from '@ckeditor/ckeditor5-image/src/image';
 import ImageCaption from '@ckeditor/ckeditor5-image/src/imagecaption';
+import ImageInsert from '@ckeditor/ckeditor5-image/src/imageinsert.js';
 import ImageStyle from '@ckeditor/ckeditor5-image/src/imagestyle';
 import ImageToolbar from '@ckeditor/ckeditor5-image/src/imagetoolbar';
 import ImageUpload from '@ckeditor/ckeditor5-image/src/imageupload';
+import ImageInline from '../../ckeditor5-image/src/imageinline';
+import ImageResize from '../../ckeditor5-image/src/imageresize';
 import Indent from '@ckeditor/ckeditor5-indent/src/indent';
 import IndentBlock from '@ckeditor/ckeditor5-indent/src/indentblock';
 import Link from '@ckeditor/ckeditor5-link/src/link';
+import LinkImage from '../../ckeditor5-link/src/linkimage';
 import List from '@ckeditor/ckeditor5-list/src/list';
 import ListStyle from '@ckeditor/ckeditor5-list/src/liststyle';
 import MediaEmbed from '@ckeditor/ckeditor5-media-embed/src/mediaembed';
@@ -39,6 +43,7 @@ import Table from '@ckeditor/ckeditor5-table/src/table';
 import TableToolbar from '@ckeditor/ckeditor5-table/src/tabletoolbar';
 import TextTransformation from '@ckeditor/ckeditor5-typing/src/texttransformation';
 import CloudServices from '@ckeditor/ckeditor5-cloud-services/src/cloudservices';
+import AutoImage from '@ckeditor/ckeditor5-image/src/autoimage.js';
 
 export default class DecoupledEditor extends DecoupledEditorBase {}
 
@@ -46,6 +51,7 @@ export default class DecoupledEditor extends DecoupledEditorBase {}
 DecoupledEditor.builtinPlugins = [
 	Essentials,
 	Alignment,
+	AutoImage,
 	FontSize,
 	FontFamily,
 	FontColor,
@@ -63,12 +69,16 @@ DecoupledEditor.builtinPlugins = [
 	Heading,
 	Image,
 	ImageCaption,
+	ImageInsert,
 	ImageStyle,
 	ImageToolbar,
 	ImageUpload,
+	ImageInline,
+	ImageResize,
 	Indent,
 	IndentBlock,
 	Link,
+	LinkImage,
 	List,
 	ListStyle,
 	MediaEmbed,
@@ -125,7 +135,8 @@ DecoupledEditor.defaultConfig = {
 			'imageStyle:alignRight',
 			'|',
 			'toggleImageCaption',
-			'imageTextAlternative'
+			'imageTextAlternative',
+			'imageInline'
 		]
 	},
 	table: {
@@ -136,5 +147,5 @@ DecoupledEditor.defaultConfig = {
 		]
 	},
 	// This value must be kept in sync with the language defined in webpack.config.js.
-	language: 'en'
+	language: 'zh-cn'
 };
