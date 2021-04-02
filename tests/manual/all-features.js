@@ -107,7 +107,7 @@ ClassicEditor
 				}
 			],
 			toolbar: [
-				'imageTextAlternative', '|',
+				'imageTextAlternative', 'toggleImageCaption', '|',
 				'imageStyle:alignLeft', 'imageStyle:alignCenter', 'imageStyle:alignRight', '|',
 				'resizeImage'
 			],

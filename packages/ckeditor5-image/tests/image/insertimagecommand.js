@@ -4,12 +4,12 @@
  */
 
 import VirtualTestEditor from '@ckeditor/ckeditor5-core/tests/_utils/virtualtesteditor';
-
-import InsertImageCommand from '../../src/image/insertimagecommand';
-import Image from '../../src/image/imageediting';
-
 import Paragraph from '@ckeditor/ckeditor5-paragraph/src/paragraph';
 import { setData as setModelData, getData as getModelData } from '@ckeditor/ckeditor5-engine/src/dev-utils/model';
+
+import InsertImageCommand from '../../src/image/insertimagecommand';
+import ImageBlockEditing from '../../src/image/imageblockediting';
+import ImageInlineEditing from '../../src/image/imageinlineediting';
 
 describe( 'InsertImageCommand', () => {
 	let editor, command, model;
@@ -17,7 +17,7 @@ describe( 'InsertImageCommand', () => {
 	beforeEach( () => {
 		return VirtualTestEditor
 			.create( {
-				plugins: [ Image, Paragraph ]
+				plugins: [ ImageBlockEditing, ImageInlineEditing, Paragraph ]
 			} )
 			.then( newEditor => {
 				editor = newEditor;
@@ -64,28 +64,32 @@ describe( 'InsertImageCommand', () => {
 			expect( command.isEnabled ).to.be.true;
 		} );
 
-		it( 'should be false when the selection is on other image', () => {
+		it( 'should be true when the selection is on another image', () => {
 			setModelData( model, '[<image></image>]' );
-			expect( command.isEnabled ).to.be.false;
+
+			expect( command.isEnabled ).to.be.true;
 		} );
 
-		it( 'should be false when the selection is inside other image', () => {
+		it( 'should be false when the selection is inside another image', () => {
 			model.schema.register( 'caption', {
 				allowIn: 'image',
 				allowContentOf: '$block',
 				isLimit: true
 			} );
 			editor.conversion.for( 'downcast' ).elementToElement( { model: 'caption', view: 'figcaption' } );
+
 			setModelData( model, '<image><caption>[]</caption></image>' );
+
 			expect( command.isEnabled ).to.be.false;
 		} );
 
-		it( 'should be false when the selection is on other object', () => {
+		it( 'should be true when the selection is on another object', () => {
 			model.schema.register( 'object', { isObject: true, allowIn: '$root' } );
 			editor.conversion.for( 'downcast' ).elementToElement( { model: 'object', view: 'object' } );
+
 			setModelData( model, '[<object></object>]' );
 
-			expect( command.isEnabled ).to.be.false;
+			expect( command.isEnabled ).to.be.true;
 		} );
 
 		it( 'should be true when the selection is inside block element inside isLimit element which allows image', () => {
@@ -107,7 +111,7 @@ describe( 'InsertImageCommand', () => {
 			model.schema.extend( 'paragraph', { allowIn: 'block' } );
 			// Block image in block.
 			model.schema.addChildCheck( ( context, childDefinition ) => {
-				if ( childDefinition.name === 'image' && context.last.name === 'block' ) {
+				if ( childDefinition.name === 'imageInline' && context.last.name === 'paragraph' ) {
 					return false;
 				}
 			} );
@@ -127,10 +131,10 @@ describe( 'InsertImageCommand', () => {
 
 			command.execute( { source: imgSrc } );
 
-			expect( getModelData( model ) ).to.equal( `[<image src="${ imgSrc }"></image>]<paragraph>foo</paragraph>` );
+			expect( getModelData( model ) ).to.equal( `<paragraph>f[<imageInline src="${ imgSrc }"></imageInline>]o</paragraph>` );
 		} );
 
-		it( 'should insert multiple images at selection position as other widgets', () => {
+		it( 'should insert multiple images at selection position as other widgets for inline type images', () => {
 			const imgSrc1 = 'foo/bar.jpg';
 			const imgSrc2 = 'foo/baz.jpg';
 
@@ -139,7 +143,23 @@ describe( 'InsertImageCommand', () => {
 			command.execute( { source: [ imgSrc1, imgSrc2 ] } );
 
 			expect( getModelData( model ) )
-				.to.equal( `<image src="${ imgSrc1 }"></image>[<image src="${ imgSrc2 }"></image>]<paragraph>foo</paragraph>` );
+				.to.equal(
+					'<paragraph>' +
+						`f<imageInline src="${ imgSrc1 }"></imageInline>[<imageInline src="${ imgSrc2 }"></imageInline>]o` +
+					'</paragraph>'
+				);
+		} );
+
+		it( 'should insert multiple images at selection position as other widgets for block type images', () => {
+			const imgSrc1 = 'foo/bar.jpg';
+			const imgSrc2 = 'foo/baz.jpg';
+
+			setModelData( model, '[]' );
+
+			command.execute( { source: [ imgSrc1, imgSrc2 ] } );
+
+			expect( getModelData( model ) )
+				.to.equal( `<image src="${ imgSrc1 }"></image>[<image src="${ imgSrc2 }"></image>]` );
 		} );
 
 		it( 'should not insert image nor crash when image could not be inserted', () => {
@@ -158,6 +178,77 @@ describe( 'InsertImageCommand', () => {
 			command.execute( { source: imgSrc } );
 
 			expect( getModelData( model ) ).to.equal( '<other>[]</other>' );
+		} );
+
+		it( 'should replace an existing selected object with an image', () => {
+			model.schema.register( 'object', { isObject: true, allowIn: '$root' } );
+			editor.conversion.for( 'downcast' ).elementToElement( { model: 'object', view: 'object' } );
+
+			setModelData( model, '<paragraph>foo</paragraph>[<object></object>]<paragraph>bar</paragraph>' );
+
+			command.execute( { source: 'foo/bar.jpg' } );
+
+			expect( getModelData( model ) ).to.equal(
+				'<paragraph>foo</paragraph>[<image src="foo/bar.jpg"></image>]<paragraph>bar</paragraph>'
+			);
+		} );
+
+		it( 'should replace a selected object with multiple block images', () => {
+			const imgSrc1 = 'foo/bar.jpg';
+			const imgSrc2 = 'foo/baz.jpg';
+
+			model.schema.register( 'object', { isObject: true, allowIn: '$root' } );
+			editor.conversion.for( 'downcast' ).elementToElement( { model: 'object', view: 'object' } );
+
+			setModelData( model, '<paragraph>foo</paragraph>[<object></object>]<paragraph>bar</paragraph>' );
+
+			command.execute( { source: [ imgSrc1, imgSrc2 ] } );
+
+			expect( getModelData( model ) ).to.equal(
+				`<paragraph>foo</paragraph><image src="${ imgSrc1 }"></image>[<image src="${ imgSrc2 }"></image>]<paragraph>bar</paragraph>`
+			);
+		} );
+
+		it( 'should replace a selected inline object with multiple inline images', () => {
+			const imgSrc1 = 'foo/bar.jpg';
+			const imgSrc2 = 'foo/baz.jpg';
+
+			model.schema.register( 'placeholder', {
+				allowWhere: '$text',
+				isInline: true,
+				isObject: true
+			} );
+			editor.conversion.for( 'downcast' ).elementToElement( { model: 'placeholder', view: 'placeholder' } );
+
+			setModelData( model, '<paragraph>foo[<placeholder></placeholder>]bar</paragraph>' );
+
+			command.execute( { source: [ imgSrc1, imgSrc2 ] } );
+
+			expect( getModelData( model ) ).to.equal(
+				'<paragraph>foo' +
+					`<imageInline src="${ imgSrc1 }"></imageInline>[<imageInline src="${ imgSrc2 }"></imageInline>]` +
+				'bar</paragraph>'
+			);
+		} );
+
+		it( 'should replace a selected block image with another block image', () => {
+			setModelData( model, '<paragraph>foo</paragraph>[<image src="foo/bar.jpg"></image>]<paragraph>bar</paragraph>' );
+
+			command.execute( { source: 'new/image.jpg' } );
+
+			expect( getModelData( model ) ).to.equal(
+				'<paragraph>foo</paragraph>[<image src="new/image.jpg"></image>]<paragraph>bar</paragraph>'
+			);
+		} );
+
+		it( 'should replace a selected inline image with another inline image', () => {
+			setModelData( model, '<paragraph>foo[<imageInline src="foo/bar.jpg"></imageInline>]bar</paragraph>' );
+
+			command.execute( { source: 'new/image.jpg' } );
+
+			expect( getModelData( model ) ).to.equal(
+				'<paragraph>foo[<imageInline src="new/image.jpg"></imageInline>]bar</paragraph>'
+			);
 		} );
 	} );
 } );

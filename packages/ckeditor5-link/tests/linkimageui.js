@@ -49,8 +49,8 @@ describe( 'LinkImageUI', () => {
 		expect( LinkImageUI.pluginName ).to.equal( 'LinkImageUI' );
 	} );
 
-	it( 'should require Image by name', () => {
-		expect( LinkImageUI.requires ).to.include( 'Image' );
+	it( 'should require ImageBlockEditing by name', () => {
+		expect( LinkImageUI.requires ).to.include( 'ImageBlockEditing' );
 	} );
 
 	describe( 'init()', () => {

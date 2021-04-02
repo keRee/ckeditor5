@@ -11,7 +11,7 @@
 
 import { Plugin } from 'ckeditor5/src/core';
 import { FileRepository } from 'ckeditor5/src/upload';
-import { getViewImgFromWidget } from '../image/utils';
+import { getViewImageFromWidget } from '../image/utils';
 
 import uploadingPlaceholder from '../../theme/icons/image_placeholder.svg';
 
@@ -55,7 +55,13 @@ export default class ImageUploadProgress extends Plugin {
 		const editor = this.editor;
 
 		// Upload status change - update image's view according to that status.
-		editor.editing.downcastDispatcher.on( 'attribute:uploadStatus:image', ( ...args ) => this.uploadStatusChange( ...args ) );
+		if ( editor.plugins.has( 'ImageBlockEditing' ) ) {
+			editor.editing.downcastDispatcher.on( 'attribute:uploadStatus:image', ( ...args ) => this.uploadStatusChange( ...args ) );
+		}
+
+		if ( editor.plugins.has( 'ImageInlineEditing' ) ) {
+			editor.editing.downcastDispatcher.on( 'attribute:uploadStatus:imageInline', ( ...args ) => this.uploadStatusChange( ...args ) );
+		}
 	}
 
 	/**
@@ -150,7 +156,7 @@ function _showPlaceholder( placeholder, viewFigure, writer ) {
 		writer.addClass( 'ck-image-upload-placeholder', viewFigure );
 	}
 
-	const viewImg = getViewImgFromWidget( viewFigure );
+	const viewImg = getViewImageFromWidget( viewFigure );
 
 	if ( viewImg.getAttribute( 'src' ) !== placeholder ) {
 		writer.setAttribute( 'src', placeholder, viewImg );
@@ -277,7 +283,7 @@ function _removeUIElement( viewFigure, writer, uniqueProperty ) {
 // @param {module:upload/filerepository~FileLoader} loader
 function _displayLocalImage( viewFigure, writer, loader ) {
 	if ( loader.data ) {
-		const viewImg = getViewImgFromWidget( viewFigure );
+		const viewImg = getViewImageFromWidget( viewFigure );
 
 		writer.setAttribute( 'src', loader.data, viewImg );
 	}

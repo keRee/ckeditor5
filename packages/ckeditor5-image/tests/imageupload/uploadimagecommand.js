@@ -14,8 +14,9 @@ import FileRepository from '@ckeditor/ckeditor5-upload/src/filerepository';
 
 import { createNativeFileMock, UploadAdapterMock } from '@ckeditor/ckeditor5-upload/tests/_utils/mocks';
 import { setData as setModelData, getData as getModelData } from '@ckeditor/ckeditor5-engine/src/dev-utils/model';
-import Image from '../../src/image/imageediting';
+import ImageBlockEditing from '../../src/image/imageblockediting';
 import Paragraph from '@ckeditor/ckeditor5-paragraph/src/paragraph';
+import ImageInlineEditing from '../../src/image/imageinlineediting';
 
 describe( 'UploadImageCommand', () => {
 	let editor, command, model, fileRepository;
@@ -32,7 +33,7 @@ describe( 'UploadImageCommand', () => {
 	beforeEach( () => {
 		return VirtualTestEditor
 			.create( {
-				plugins: [ FileRepository, Image, Paragraph, UploadAdapterPluginMock ]
+				plugins: [ FileRepository, ImageBlockEditing, ImageInlineEditing, Paragraph, UploadAdapterPluginMock ]
 			} )
 			.then( newEditor => {
 				editor = newEditor;
@@ -42,6 +43,7 @@ describe( 'UploadImageCommand', () => {
 
 				const schema = model.schema;
 				schema.extend( 'image', { allowAttributes: 'uploadId' } );
+				schema.extend( 'imageInline', { allowAttributes: 'uploadId' } );
 			} );
 	} );
 
@@ -98,12 +100,12 @@ describe( 'UploadImageCommand', () => {
 			expect( command.isEnabled ).to.be.false;
 		} );
 
-		it( 'should be false when the selection is on other object', () => {
+		it( 'should be true when the selection is on other object', () => {
 			model.schema.register( 'object', { isObject: true, allowIn: '$root' } );
 			editor.conversion.for( 'downcast' ).elementToElement( { model: 'object', view: 'object' } );
 			setModelData( model, '[<object></object>]' );
 
-			expect( command.isEnabled ).to.be.false;
+			expect( command.isEnabled ).to.be.true;
 		} );
 
 		it( 'should be true when the selection is inside block element inside isLimit element which allows image', () => {
@@ -126,6 +128,9 @@ describe( 'UploadImageCommand', () => {
 				if ( childDefinition.name === 'image' && context.last.name === 'block' ) {
 					return false;
 				}
+				if ( childDefinition.name === 'imageInline' && context.last.name === 'paragraph' ) {
+					return false;
+				}
 			} );
 			editor.conversion.for( 'downcast' ).elementToElement( { model: 'block', view: 'block' } );
 
@@ -144,7 +149,7 @@ describe( 'UploadImageCommand', () => {
 
 			const id = fileRepository.getLoader( file ).id;
 			expect( getModelData( model ) )
-				.to.equal( `[<image uploadId="${ id }"></image>]<paragraph>foo</paragraph>` );
+				.to.equal( `<paragraph>f[<imageInline uploadId="${ id }"></imageInline>]o</paragraph>` );
 		} );
 
 		it( 'should use parent batch', () => {

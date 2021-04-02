@@ -7,7 +7,7 @@ import { FileRepository } from 'ckeditor5/src/upload';
 import { Command } from 'ckeditor5/src/core';
 import { toArray } from 'ckeditor5/src/utils';
 
-import { insertImage, isImageAllowed } from '../image/utils';
+import { insertImage, isImage, isImageAllowed } from '../image/utils';
 
 /**
  * @module image/imageupload/uploadimagecommand
@@ -20,7 +20,7 @@ import { insertImage, isImageAllowed } from '../image/utils';
  * and it is also available via aliased `imageUpload` name.
  *
  * In order to upload an image at the current selection position
- * (according to the {@link module:widget/utils~findOptimalInsertionPosition} algorithm),
+ * (according to the {@link module:widget/utils~findOptimalInsertionRange} algorithm),
  * execute the command and pass the native image file instance:
  *
  *		this.listenTo( editor.editing.view.document, 'clipboardInput', ( evt, data ) => {
@@ -47,10 +47,10 @@ export default class UploadImageCommand extends Command {
 	 * @inheritDoc
 	 */
 	refresh() {
-		const imageElement = this.editor.model.document.selection.getSelectedElement();
-		const isImage = imageElement && imageElement.name === 'image' || false;
+		const selectedElement = this.editor.model.document.selection.getSelectedElement();
 
-		this.isEnabled = isImageAllowed( this.editor.model ) || isImage;
+		// TODO: This needs refactoring.
+		this.isEnabled = isImageAllowed( this.editor ) || isImage( selectedElement );
 	}
 
 	/**
@@ -61,22 +61,33 @@ export default class UploadImageCommand extends Command {
 	 * @param {File|Array.<File>} options.file The image file or an array of image files to upload.
 	 */
 	execute( options ) {
-		const editor = this.editor;
-		const model = editor.model;
+		const files = toArray( options.file );
+		const selection = this.editor.model.document.selection;
+		const fileRepository = this.editor.plugins.get( FileRepository );
 
-		const fileRepository = editor.plugins.get( FileRepository );
+		files.forEach( ( file, index ) => {
+			const selectedElement = selection.getSelectedElement();
 
-		for ( const file of toArray( options.file ) ) {
-			uploadImage( model, fileRepository, file );
-		}
+			// Inserting of an inline image replace the selected element and make a selection on the inserted image.
+			// Therefore inserting multiple inline images requires creating position after each element.
+			if ( index && selectedElement && isImage( selectedElement ) ) {
+				const position = this.editor.model.createPositionAfter( selectedElement );
+
+				uploadImage( this.editor, fileRepository, file, position );
+			} else {
+				uploadImage( this.editor, fileRepository, file );
+			}
+		} );
 	}
 }
 
 // Handles uploading single file.
 //
-// @param {module:engine/model/model~Model} model
+// @param {module:core/editor/editor~Editor} editor
+// @param {module:upload/filerepository~FileRepository} fileRepository
 // @param {File} file
-function uploadImage( model, fileRepository, file ) {
+// @param {module:engine/model/position~Position} position
+function uploadImage( editor, fileRepository, file, position ) {
 	const loader = fileRepository.createLoader( file );
 
 	// Do not throw when upload adapter is not set. FileRepository will log an error anyway.
@@ -84,5 +95,5 @@ function uploadImage( model, fileRepository, file ) {
 		return;
 	}
 
-	insertImage( model, { uploadId: loader.id } );
+	insertImage( editor, { uploadId: loader.id }, position );
 }

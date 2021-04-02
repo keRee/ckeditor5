@@ -4,9 +4,9 @@
  */
 
 import { Command } from 'ckeditor5/src/core';
-import { toArray } from 'ckeditor5/src/utils';
+import { logWarning, toArray } from 'ckeditor5/src/utils';
 
-import { insertImage, isImageAllowed } from './utils';
+import { insertImage, isImage, isImageAllowed } from './utils';
 
 /**
  * @module image/image/insertimagecommand
@@ -19,7 +19,7 @@ import { insertImage, isImageAllowed } from './utils';
  * and it is also available via aliased `imageInsert` name.
  *
  * In order to insert an image at the current selection position
- * (according to the {@link module:widget/utils~findOptimalInsertionPosition} algorithm),
+ * (according to the {@link module:widget/utils~findOptimalInsertionRange} algorithm),
  * execute the command and specify the image source:
  *
  *		editor.execute( 'insertImage', { source: 'http://url.to.the/image' } );
@@ -39,8 +39,41 @@ export default class InsertImageCommand extends Command {
 	/**
 	 * @inheritDoc
 	 */
+	constructor( editor ) {
+		super( editor );
+
+		const configImageInsertType = editor.config.get( 'image.insert.type' );
+
+		if ( !editor.plugins.has( 'ImageBlockEditing' ) ) {
+			if ( configImageInsertType === 'block' ) {
+				/**
+				 * The {@link module:image/imageblock~ImageBlock} plugin must be enabled to allow inserting block images. See
+				 * {@link module:image/imageinsert~ImageInsertConfig#type} to learn more.
+				 *
+				 * @error image-block-plugin-required
+				 */
+				logWarning( 'image-block-plugin-required' );
+			}
+		}
+
+		if ( !editor.plugins.has( 'ImageInlineEditing' ) ) {
+			if ( configImageInsertType === 'inline' ) {
+				/**
+				 * The {@link module:image/imageinline~ImageInline} plugin must be enabled to allow inserting inline images. See
+				 * {@link module:image/imageinsert~ImageInsertConfig#type} to learn more.
+				 *
+				 * @error image-inline-plugin-required
+				 */
+				logWarning( 'image-inline-plugin-required' );
+			}
+		}
+	}
+
+	/**
+	 * @inheritDoc
+	 */
 	refresh() {
-		this.isEnabled = isImageAllowed( this.editor.model );
+		this.isEnabled = isImageAllowed( this.editor );
 	}
 
 	/**
@@ -51,10 +84,21 @@ export default class InsertImageCommand extends Command {
 	 * @param {String|Array.<String>} options.source The image source or an array of image sources to insert.
 	 */
 	execute( options ) {
-		const model = this.editor.model;
+		const sources = toArray( options.source );
+		const selection = this.editor.model.document.selection;
 
-		for ( const src of toArray( options.source ) ) {
-			insertImage( model, { src } );
-		}
+		sources.forEach( ( src, index ) => {
+			const selectedElement = selection.getSelectedElement();
+
+			// Inserting of an inline image replace the selected element and make a selection on the inserted image.
+			// Therefore inserting multiple inline images requires creating position after each element.
+			if ( index && selectedElement && isImage( selectedElement ) ) {
+				const position = this.editor.model.createPositionAfter( selectedElement );
+
+				insertImage( this.editor, { src }, position );
+			} else {
+				insertImage( this.editor, { src } );
+			}
+		} );
 	}
 }

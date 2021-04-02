@@ -30,7 +30,7 @@ export default class LinkImageUI extends Plugin {
 	 * @inheritDoc
 	 */
 	static get requires() {
-		return [ LinkEditing, LinkUI, 'Image' ];
+		return [ LinkEditing, LinkUI, 'ImageBlockEditing' ];
 	}
 
 	/**

@@ -9,7 +9,8 @@ import VirtualTestEditor from '@ckeditor/ckeditor5-core/tests/_utils/virtualtest
 
 import Plugin from '@ckeditor/ckeditor5-core/src/plugin';
 import ClipboardPipeline from '@ckeditor/ckeditor5-clipboard/src/clipboardpipeline';
-import ImageEditing from '../../src/image/imageediting';
+import ImageBlockEditing from '../../src/image/imageblockediting';
+import ImageInlineEditing from '../../src/image/imageinlineediting';
 import ImageUploadEditing from '../../src/imageupload/imageuploadediting';
 import UploadImageCommand from '../../src/imageupload/uploadimagecommand';
 import Paragraph from '@ckeditor/ckeditor5-paragraph/src/paragraph';
@@ -58,7 +59,10 @@ describe( 'ImageUploadEditing', () => {
 
 		return VirtualTestEditor
 			.create( {
-				plugins: [ ImageEditing, ImageUploadEditing, Paragraph, UndoEditing, UploadAdapterPluginMock, ClipboardPipeline ]
+				plugins: [
+					ImageBlockEditing, ImageInlineEditing, ImageUploadEditing,
+					Paragraph, UndoEditing, UploadAdapterPluginMock, ClipboardPipeline
+				]
 			} )
 			.then( newEditor => {
 				editor = newEditor;
@@ -83,18 +87,35 @@ describe( 'ImageUploadEditing', () => {
 		expect( model.schema.checkAttribute( [ '$root', 'image' ], 'uploadId' ) ).to.be.true;
 	} );
 
-	it( 'should register uploadImage command', () => {
+	it( 'should register proper schema rules for image style when ImageBlock plugin is enabled', async () => {
+		const newEditor = await VirtualTestEditor.create( { plugins: [ ImageBlockEditing, ImageUploadEditing ] } );
+		expect( newEditor.model.schema.checkAttribute( [ '$root', 'image' ], 'uploadId' ) ).to.be.true;
+		expect( newEditor.model.schema.checkAttribute( [ '$root', 'image' ], 'uploadStatus' ) ).to.be.true;
+		await newEditor.destroy();
+	} );
+
+	it( 'should register proper schema rules for image style when ImageInline plugin is enabled', async () => {
+		const newEditor = await VirtualTestEditor.create( { plugins: [ ImageInlineEditing, ImageUploadEditing ] } );
+		expect( newEditor.model.schema.checkAttribute( [ '$root', 'imageInline' ], 'uploadId' ) ).to.be.true;
+		expect( newEditor.model.schema.checkAttribute( [ '$root', 'imageInline' ], 'uploadStatus' ) ).to.be.true;
+		await newEditor.destroy();
+	} );
+
+	it( 'should register the uploadImage command', () => {
 		expect( editor.commands.get( 'uploadImage' ) ).to.be.instanceOf( UploadImageCommand );
 	} );
 
-	it( 'should register imageUpload command as an alias for uploadImage command', () => {
+	it( 'should register the imageUpload command as an alias for the uploadImage command', () => {
 		expect( editor.commands.get( 'imageUpload' ) ).to.equal( editor.commands.get( 'uploadImage' ) );
 	} );
 
 	it( 'should load Clipboard plugin', () => {
 		return VirtualTestEditor
 			.create( {
-				plugins: [ ImageEditing, ImageUploadEditing, Paragraph, UndoEditing, UploadAdapterPluginMock ]
+				plugins: [
+					ImageBlockEditing, ImageInlineEditing, ImageUploadEditing,
+					Paragraph, UndoEditing, UploadAdapterPluginMock
+				]
 			} )
 			.then( editor => {
 				expect( editor.plugins.get( ClipboardPipeline ) ).to.be.instanceOf( ClipboardPipeline );
@@ -111,7 +132,7 @@ describe( 'ImageUploadEditing', () => {
 
 		const id = fileRepository.getLoader( fileMock ).id;
 		expect( getModelData( model ) ).to.equal(
-			`<paragraph>foo</paragraph>[<image uploadId="${ id }" uploadStatus="reading"></image>]`
+			`<paragraph>foo[<imageInline uploadId="${ id }" uploadStatus="reading"></imageInline>]</paragraph>`
 		);
 		expect( eventInfo.stop.called ).to.be.true;
 	} );
@@ -129,7 +150,7 @@ describe( 'ImageUploadEditing', () => {
 
 		const id = fileRepository.getLoader( fileMock ).id;
 		expect( getModelData( model ) ).to.equal(
-			`<paragraph>foo</paragraph>[<image uploadId="${ id }" uploadStatus="reading"></image>]`
+			`<paragraph>foo[<imageInline uploadId="${ id }" uploadStatus="reading"></imageInline>]</paragraph>`
 		);
 		expect( eventInfo.stop.called ).to.be.true;
 	} );
@@ -147,11 +168,11 @@ describe( 'ImageUploadEditing', () => {
 
 		const id = fileRepository.getLoader( fileMock ).id;
 		expect( getModelData( model ) ).to.equal(
-			`[<image uploadId="${ id }" uploadStatus="reading"></image>]<paragraph>foo</paragraph>`
+			`<paragraph>f[<imageInline uploadId="${ id }" uploadStatus="reading"></imageInline>]oo</paragraph>`
 		);
 	} );
 
-	it( 'should insert multiple image files when are pasted', () => {
+	it( 'should insert multiple image files when are pasted (inline image type)', () => {
 		const files = [ createNativeFileMock(), createNativeFileMock() ];
 		const dataTransfer = new DataTransfer( { files, types: [ 'Files' ] } );
 		setModelData( model, '<paragraph>[]foo</paragraph>' );
@@ -165,7 +186,27 @@ describe( 'ImageUploadEditing', () => {
 		const id2 = fileRepository.getLoader( files[ 1 ] ).id;
 
 		expect( getModelData( model ) ).to.equal(
-			'<paragraph>foo</paragraph>' +
+			'<paragraph>' +
+				`foo<imageInline uploadId="${ id1 }" uploadStatus="reading"></imageInline>` +
+				`[<imageInline uploadId="${ id2 }" uploadStatus="reading"></imageInline>]` +
+			'</paragraph>'
+		);
+	} );
+
+	it( 'should insert multiple image files when are pasted (block image type)', () => {
+		const files = [ createNativeFileMock(), createNativeFileMock() ];
+		const dataTransfer = new DataTransfer( { files, types: [ 'Files' ] } );
+		setModelData( model, '[]' );
+
+		const targetRange = model.createRange( model.createPositionAt( doc.getRoot(), 1 ), model.createPositionAt( doc.getRoot(), 1 ) );
+		const targetViewRange = editor.editing.mapper.toViewRange( targetRange );
+
+		viewDocument.fire( 'clipboardInput', { dataTransfer, targetRanges: [ targetViewRange ] } );
+
+		const id1 = fileRepository.getLoader( files[ 0 ] ).id;
+		const id2 = fileRepository.getLoader( files[ 1 ] ).id;
+
+		expect( getModelData( model ) ).to.equal(
 			`<image uploadId="${ id1 }" uploadStatus="reading"></image>` +
 			`[<image uploadId="${ id2 }" uploadStatus="reading"></image>]`
 		);
@@ -188,7 +229,7 @@ describe( 'ImageUploadEditing', () => {
 
 		const id = fileRepository.getLoader( fileMock ).id;
 		expect( getModelData( model ) ).to.equal(
-			`[<image uploadId="${ id }" uploadStatus="reading"></image>]<paragraph>foo</paragraph><image></image>`
+			`<paragraph>[<imageInline uploadId="${ id }" uploadStatus="reading"></imageInline>]foo</paragraph><image></image>`
 		);
 	} );
 
@@ -196,7 +237,10 @@ describe( 'ImageUploadEditing', () => {
 		// Clipboard plugin is required for this test.
 		return VirtualTestEditor
 			.create( {
-				plugins: [ ImageEditing, ImageUploadEditing, Paragraph, UploadAdapterPluginMock, ClipboardPipeline ]
+				plugins: [
+					ImageBlockEditing, ImageInlineEditing, ImageUploadEditing,
+					Paragraph, UploadAdapterPluginMock, ClipboardPipeline
+				]
 			} )
 			.then( editor => {
 				const fileMock = createNativeFileMock();
@@ -302,6 +346,12 @@ describe( 'ImageUploadEditing', () => {
 		} );
 		model.schema.extend( '$text', { allowIn: 'other' } );
 
+		model.schema.addChildCheck( ( context, childDefinition ) => {
+			if ( childDefinition.name.startsWith( 'image' ) && context.last.name === 'other' ) {
+				return false;
+			}
+		} );
+
 		editor.conversion.elementToElement( { model: 'other', view: 'p' } );
 
 		setModelData( model, '<other>[]</other>' );
@@ -380,11 +430,10 @@ describe( 'ImageUploadEditing', () => {
 		model.document.once( 'change', () => {
 			tryExpect( done, () => {
 				expect( getViewData( view ) ).to.equal(
-					'[<figure class="ck-widget image" contenteditable="false">' +
+					'<p>[<span class="ck-widget image-inline" contenteditable="false">' +
 						// Rendering the image data is left to a upload progress converter.
 						'<img></img>' +
-						'</figure>]' +
-					'<p>foo bar</p>'
+					'</span>}foo bar</p>'
 				);
 
 				expect( loader.status ).to.equal( 'uploading' );
@@ -405,7 +454,9 @@ describe( 'ImageUploadEditing', () => {
 			model.document.once( 'change', () => {
 				tryExpect( done, () => {
 					expect( getViewData( view ) ).to.equal(
-						'[<figure class="ck-widget image" contenteditable="false"><img src="image.png"></img></figure>]<p>foo bar</p>'
+						'<p>[<span class="ck-widget image-inline" contenteditable="false">' +
+							'<img src="image.png"></img>' +
+						'</span>}foo bar</p>'
 					);
 					expect( loader.status ).to.equal( 'idle' );
 				} );
@@ -466,7 +517,7 @@ describe( 'ImageUploadEditing', () => {
 		const catchSpy = sinon.spy();
 
 		// Throw an error when async attribute change occur.
-		editor.editing.downcastDispatcher.on( 'attribute:uploadStatus:image', ( evt, data ) => {
+		editor.editing.downcastDispatcher.on( 'attribute:uploadStatus:imageInline', ( evt, data ) => {
 			if ( data.attributeNewValue == 'uploading' ) {
 				throw error;
 			}
@@ -560,10 +611,11 @@ describe( 'ImageUploadEditing', () => {
 		const abortSpy = sinon.spy( loader, 'abort' );
 		const loadSpy = sinon.spy( loader, 'read' );
 
-		const image = doc.getRoot().getChild( 0 );
+		const paragraph = doc.getRoot().getChild( 0 );
+		const image = paragraph.getChild( 0 );
 
 		model.change( writer => {
-			writer.move( writer.createRangeOn( image ), writer.createPositionAt( doc.getRoot(), 2 ) );
+			writer.move( writer.createRangeOn( image ), writer.createPositionAt( paragraph, 2 ) );
 		} );
 
 		expect( abortSpy.called ).to.be.false;
@@ -598,7 +650,7 @@ describe( 'ImageUploadEditing', () => {
 			done();
 		} );
 
-		const image = doc.getRoot().getChild( 0 );
+		const image = doc.getRoot().getChild( 0 ).getChild( 0 );
 
 		model.change( writer => {
 			writer.remove( image );
@@ -614,9 +666,9 @@ describe( 'ImageUploadEditing', () => {
 			model.document.once( 'change', () => {
 				tryExpect( done, () => {
 					expect( getViewData( view ) ).to.equal(
-						'[<figure class="ck-widget image" contenteditable="false">' +
-						'<img sizes="100vw" src="image.png" srcset="image-500.png 500w, image-800.png 800w" width="800"></img>' +
-						'</figure>]<p>foo bar</p>'
+						'<p>[<span class="ck-widget image-inline" contenteditable="false">' +
+							'<img sizes="100vw" src="image.png" srcset="image-500.png 500w, image-800.png 800w" width="800"></img>' +
+						'</span>}foo bar</p>'
 					);
 					expect( loader.status ).to.equal( 'idle' );
 				} );
@@ -650,9 +702,11 @@ describe( 'ImageUploadEditing', () => {
 		viewDocument.fire( 'clipboardInput', { dataTransfer, targetRanges: [ targetViewRange ] } );
 
 		const id = adapterMocks[ 0 ].loader.id;
-		const expected = '<paragraph>bar</paragraph>' +
-			`[<image src="" uploadId="${ id }" uploadStatus="reading"></image>]` +
-			'<paragraph>foo</paragraph>';
+		const expected =
+			'<paragraph>bar</paragraph>' +
+			'<paragraph>' +
+				`<imageInline src="" uploadId="${ id }" uploadStatus="reading"></imageInline>[]foo` +
+			'</paragraph>';
 
 		expectModel( done, getModelData( model ), expected );
 	} );
@@ -669,8 +723,10 @@ describe( 'ImageUploadEditing', () => {
 		viewDocument.fire( 'clipboardInput', { dataTransfer, targetRanges: [ targetViewRange ] } );
 
 		const id = adapterMocks[ 0 ].loader.id;
-		const expected = `[<image src="" uploadId="${ id }" uploadStatus="reading"></image>]` +
-			'<paragraph>foo</paragraph>';
+		const expected =
+			'<paragraph>' +
+				`<imageInline src="" uploadId="${ id }" uploadStatus="reading"></imageInline>[]foo` +
+			'</paragraph>';
 
 		expectModel( done, getModelData( model ), expected );
 	} );
@@ -688,7 +744,7 @@ describe( 'ImageUploadEditing', () => {
 
 		viewDocument.fire( 'clipboardInput', { dataTransfer, targetRanges: [ targetViewRange ] } );
 
-		const expected = `[<image src="${ base64Sample }"></image>]<paragraph>foo</paragraph>`;
+		const expected = `<paragraph><imageInline src="${ base64Sample }"></imageInline>[]foo</paragraph>`;
 
 		expectModel( done, getModelData( model ), expected );
 	} );
@@ -723,7 +779,7 @@ describe( 'ImageUploadEditing', () => {
 
 		expectData(
 			'<img src="" uploadId="#loader1_id" uploadProcessed="true"></img>',
-			'[<image src="" uploadId="#loader1_id" uploadStatus="reading"></image>]<paragraph>foo</paragraph>',
+			'<paragraph><imageInline src="" uploadId="#loader1_id" uploadStatus="reading"></imageInline>[]foo</paragraph>',
 			'<paragraph>[]foo</paragraph>',
 			content,
 			done,
@@ -739,15 +795,16 @@ describe( 'ImageUploadEditing', () => {
 			evt.stop();
 		}, { priority: 'high' } );
 
-		const expectedModel = '<paragraph>bar</paragraph>' +
-			'<image src="" uploadId="#loader1_id" uploadStatus="reading"></image>' +
-			'<image src="" uploadId="#loader2_id" uploadStatus="reading"></image>' +
-			'[<image src="" uploadId="#loader3_id" uploadStatus="reading"></image>]' +
-			'<paragraph>foo</paragraph>';
-		const expectedFinalModel = '<paragraph>bar</paragraph>' +
-			'<image src="" uploadId="#loader1_id" uploadStatus="reading"></image>' +
-			'[<image src="" uploadId="#loader2_id" uploadStatus="reading"></image>]' +
-			'<paragraph>foo</paragraph>';
+		const expectedModel =
+			'<paragraph>bar</paragraph>' +
+			'<paragraph><imageInline src="" uploadId="#loader1_id" uploadStatus="reading"></imageInline></paragraph>' +
+			'<paragraph><imageInline src="" uploadId="#loader2_id" uploadStatus="reading"></imageInline></paragraph>' +
+			'<paragraph><imageInline src="" uploadId="#loader3_id" uploadStatus="reading"></imageInline>[]foo</paragraph>';
+		const expectedFinalModel =
+			'<paragraph>bar</paragraph>' +
+			'<paragraph><imageInline src="" uploadId="#loader1_id" uploadStatus="reading"></imageInline></paragraph>' +
+			'<paragraph><imageInline src="" uploadId="#loader2_id" uploadStatus="reading"></imageInline></paragraph>' +
+			'<paragraph>[]foo</paragraph>';
 
 		setModelData( model, '<paragraph>[]foo</paragraph>' );
 
@@ -815,7 +872,7 @@ describe( 'ImageUploadEditing', () => {
 
 		expectData(
 			'<img src="" uploadId="#loader1_id" uploadProcessed="true"></img><p>baz</p>',
-			'<image src="" uploadId="#loader1_id" uploadStatus="reading"></image><paragraph>baz[]foo</paragraph>',
+			'<paragraph><imageInline src="" uploadId="#loader1_id" uploadStatus="reading"></imageInline>baz[]foo</paragraph>',
 			'<paragraph>baz[]foo</paragraph>',
 			content,
 			err => {
@@ -853,8 +910,9 @@ describe( 'ImageUploadEditing', () => {
 
 		expectData(
 			'<p>baz</p><img src="" uploadId="#loader1_id" uploadProcessed="true"></img>',
-			'<paragraph>baz</paragraph>[<image src="" uploadId="#loader1_id" uploadStatus="reading"></image>]<paragraph>foo</paragraph>',
-			'<paragraph>baz[]</paragraph><paragraph>foo</paragraph>',
+			'<paragraph>baz</paragraph>' +
+			'<paragraph><imageInline src="" uploadId="#loader1_id" uploadStatus="reading"></imageInline>[]foo</paragraph>',
+			'<paragraph>baz</paragraph><paragraph>[]foo</paragraph>',
 			content,
 			done,
 			false
@@ -1005,7 +1063,7 @@ describe( 'ImageUploadEditing', () => {
 
 			expectData(
 				'<img src="" uploadId="#loader1_id" uploadProcessed="true"></img>',
-				'[<image src="" uploadId="#loader1_id" uploadStatus="reading"></image>]<paragraph>foo</paragraph>',
+				'<paragraph><imageInline src="" uploadId="#loader1_id" uploadStatus="reading"></imageInline>[]foo</paragraph>',
 				'<paragraph>[]foo</paragraph>',
 				content,
 				done,

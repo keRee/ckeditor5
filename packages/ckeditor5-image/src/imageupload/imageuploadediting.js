@@ -19,7 +19,7 @@ import { env } from 'ckeditor5/src/utils';
 import UploadImageCommand from './uploadimagecommand';
 import { fetchLocalImage, isLocalImage } from '../../src/imageupload/utils';
 import { createImageTypeRegExp } from './utils';
-import { getViewImgFromWidget } from '../image/utils';
+import { getViewImageFromWidget, isImage } from '../image/utils';
 
 /**
  * The editing part of the image upload feature. It registers the `'uploadImage'` command
@@ -65,9 +65,17 @@ export default class ImageUploadEditing extends Plugin {
 		const imageTypes = createImageTypeRegExp( editor.config.get( 'image.upload.types' ) );
 
 		// Setup schema to allow uploadId and uploadStatus for images.
-		schema.extend( 'image', {
-			allowAttributes: [ 'uploadId', 'uploadStatus' ]
-		} );
+		if ( this.editor.plugins.has( 'ImageBlockEditing' ) ) {
+			schema.extend( 'image', {
+				allowAttributes: [ 'uploadId', 'uploadStatus' ]
+			} );
+		}
+
+		if ( this.editor.plugins.has( 'ImageInlineEditing' ) ) {
+			schema.extend( 'imageInline', {
+				allowAttributes: [ 'uploadId', 'uploadStatus' ]
+			} );
+		}
 
 		const uploadImageCommand = new UploadImageCommand( editor );
 
@@ -226,7 +234,7 @@ export default class ImageUploadEditing extends Plugin {
 				/* istanbul ignore next */
 				if ( env.isSafari ) {
 					const viewFigure = editor.editing.mapper.toViewElement( imageElement );
-					const viewImg = getViewImgFromWidget( viewFigure );
+					const viewImg = getViewImageFromWidget( viewFigure );
 
 					editor.editing.view.once( 'render', () => {
 						// Early returns just to be safe. There might be some code ran
@@ -348,6 +356,6 @@ export function isHtmlIncluded( dataTransfer ) {
 
 function getImagesFromChangeItem( editor, item ) {
 	return Array.from( editor.model.createRangeOn( item ) )
-		.filter( value => value.item.is( 'element', 'image' ) )
+		.filter( value => isImage( value.item ) )
 		.map( value => value.item );
 }
